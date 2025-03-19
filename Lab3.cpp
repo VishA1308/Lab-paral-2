@@ -45,28 +45,30 @@ void simple_iteration_parallel_for(int N, vector<double>& a, const vector<double
     }
 }
 
-void simple_iteration_parallel(int N, vector<double>& a, const vector<double>& b, vector<double>& x, double tolerance, int max_iterations, int threads) {
+void simple_iteration_parallel(int N, vector<double>& a, const vector<double>& b, vector<double>& x, double tolerance, int max_iterations, int threads)
+{
     double tau = 0.01;
     double b_mod = 0.0;
-
-    // Вычисление нормы вектора b
-    for (int i = 0; i < N; ++i) {
+    for (int i = 0; i < N; ++i)
+    {
         b_mod += b[i] * b[i];
     }
     b_mod = sqrt(b_mod);
-    double prev_diff = DBL_MAX;
+    double prev_diff = 100000000;
 
-    for (int iteration = 0; iteration < max_iterations; ++iteration) {
+    for (int iteration = 0; iteration < max_iterations; ++iteration)
+    {
+        vector<double> x_next(N, 0.0);
         double x_mod = 0.0;
-
-        // Вычисление нормы текущего решения
-        for (int i = 0; i < N; ++i) {
+#pragma omp parallel for reduction(+ : x_mod) num_threads(threads)
+        for (int i = 0; i < N; ++i)
+        {
             x_mod += (a[i] * x[i] - b[i]) * (a[i] * x[i] - b[i]);
         }
         x_mod = sqrt(x_mod);
         double diff = x_mod / b_mod;
-
-        if (diff < tolerance) {
+        if (diff < tolerance)
+        {
             printf("Break on iteration: %d\n", iteration);
             break;
         }
@@ -74,12 +76,16 @@ void simple_iteration_parallel(int N, vector<double>& a, const vector<double>& b
             tau = -tau;
         else
             prev_diff = diff;
+        //printf("Iteration: %d %f\n", iteration, diff);
 
-        vector<double> x_next(N, 0.0);
 #pragma omp parallel num_threads(threads)
         {
-#pragma omp for
-            for (int i = 0; i < N; ++i) {
+            int thread = omp_get_thread_num();
+            int start = thread * N / threads;
+            int end = (thread + 1) * N / threads;
+            //printf("iteration: %d, thread: %d, start: %d, end: %d\n", iteration, thread, start, end);
+            for (int i = start; i < end; ++i)
+            {
                 x_next[i] = x[i] - tau * (a[i] * x[i] - b[i]);
             }
         }
